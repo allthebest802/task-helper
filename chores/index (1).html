@@ -801,62 +801,25 @@ const TASKS = [
 
 // ═══════════════════════════════════════════════════════
 // KEYWORD MATCHING
-// Strict matching: requires a whole keyword phrase to appear
-// in the query, or the query to closely match a keyword.
-// Single generic words like "clean" or "make" do NOT match.
 // ═══════════════════════════════════════════════════════
-
-// Words that are too generic to count as a match on their own
-const STOP_WORDS = new Set(['clean','tidy','do','make','get','my','the','a','an','i','up','put','go','have','wash','set']);
-
 function findTask(input) {
   const q = input.toLowerCase().trim();
-  let best = null;
-  let bestScore = 0;
-
+  let best = null; let bestScore = 0;
   for (const task of TASKS) {
-    let taskScore = 0;
-
     for (const kw of task.keywords) {
-      // Exact match — instant win
       if (q === kw) return task;
-
-      // Query contains the full keyword phrase (e.g. "please wash the dishes tonight" contains "wash the dishes")
-      if (q.includes(kw)) {
-        const score = kw.length * 3;
-        if (score > taskScore) taskScore = score;
-        continue;
-      }
-
-      // Keyword contains the full query (e.g. query "tidy bedroom" is inside keyword "tidy my bedroom")
-      if (kw.includes(q) && q.length > 4) {
-        const score = q.length * 2;
-        if (score > taskScore) taskScore = score;
-        continue;
-      }
-
-      // Count how many MEANINGFUL words from the query appear in this keyword
-      const qWords = q.split(/\s+/).filter(w => w.length > 2 && !STOP_WORDS.has(w));
-      const kwWords = kw.split(/\s+/).filter(w => w.length >= 3);
-      let hits = 0;
-      for (const w of qWords) {
-        if (kwWords.some(kw2 => kw2.includes(w) || w.includes(kw2))) hits++;
-      }
-      // Only count if ALL meaningful words matched (not just one generic overlap)
-      if (hits > 0 && qWords.length > 0 && hits >= qWords.length) {
-        const score = hits * 8;
-        if (score > taskScore) taskScore = score;
+      if (q.includes(kw) || kw.includes(q)) {
+        const score = kw.length + 5;
+        if (score > bestScore) { bestScore = score; best = task; }
       }
     }
-
-    if (taskScore > bestScore) {
-      bestScore = taskScore;
-      best = task;
-    }
+    const qWords = q.split(/\s+/);
+    const kwAll = task.keywords.join(' ').toLowerCase();
+    let overlap = 0;
+    for (const w of qWords) { if (w.length > 2 && kwAll.includes(w)) overlap += w.length; }
+    if (overlap > bestScore) { bestScore = overlap; best = task; }
   }
-
-  // Require a meaningful score — single-word generic overlaps score 0 or very low
-  return bestScore >= 8 ? best : null;
+  return bestScore > 2 ? best : null;
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1020,13 +983,11 @@ Respond ONLY with a JSON array, no explanation, no markdown. Example format:
 // RENDER STEPS
 // ═══════════════════════════════════════════════════════
 let stepsDone = [];
-let totalSteps = 0;
 
 function renderSteps(label, steps, usedAI) {
   const showCues = hasOpt('cues');
   const showCheers = hasOpt('cheers');
   stepsDone = new Array(steps.length).fill(false);
-  totalSteps = steps.length;
 
   document.getElementById('taskLabel').textContent = label;
   document.getElementById('celebration').classList.remove('show');
@@ -1119,7 +1080,7 @@ function confetti() {
 document.getElementById('resetAllBtn').addEventListener('click', () => {
   stepsDone.fill(false);
   document.querySelectorAll('.step-card').forEach(c => c.classList.remove('done'));
-  updateProgress(totalSteps);
+  updateProgress(stepsDone.length);
   document.getElementById('celebration').classList.remove('show');
 });
 document.getElementById('newTaskBtn').addEventListener('click', () => {
